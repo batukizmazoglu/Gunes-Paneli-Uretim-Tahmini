@@ -7,12 +7,16 @@ from datetime import datetime
 def main():
     print("Tahmin işlemi başlatılıyor...")
 
-    # 1. JSON Verisini Yükle
+    # 1. JSON Verisini İste
+    json_file = input("Lütfen tahmin için kullanılacak JSON dosyasının adını girin (Varsayılan: forecast_data.json): ").strip()
+    if not json_file:
+        json_file = 'forecast_data.json'
+
     try:
-        with open('forecast_data.json', 'r') as f:
+        with open(json_file, 'r') as f:
             data_json = json.load(f)
     except FileNotFoundError:
-        print("Hata: forecast_data.json dosyası bulunamadı.")
+        print(f"Hata: {json_file} dosyası bulunamadı.")
         return
 
     # 2. DataFrame Oluştur (15 dakikalık veriler)
@@ -71,13 +75,31 @@ def main():
 
     X = df_filtered[features]
 
-    # 5. Modeli Yükle ve Tahmin Yap
-    model_path = 'solar_model_xgboost.joblib'
+    # 5. Modeli Seç ve Yükle
+    all_models_path = 'solar_models_all.joblib'
     try:
-        model = joblib.load(model_path)
+        models_dict = joblib.load(all_models_path)
     except FileNotFoundError:
-        print(f"Hata: Model dosyası ({model_path}) bulunamadı. Lütfen önce modeli eğitin.")
+        print(f"Hata: Model dosyası ({all_models_path}) bulunamadı. Lütfen önce 'solar_prediction.py'yi çalıştırarak modelleri eğitin.")
         return
+
+    print("\n--- Kullanılabilir Modeller ---")
+    model_names = list(models_dict.keys())
+    for i, name in enumerate(model_names, 1):
+        print(f"{i}. {name}")
+    
+    while True:
+        try:
+            choice = int(input("\nLütfen bir model numarası seçin (1-7): "))
+            if 1 <= choice <= len(model_names):
+                selected_model_name = model_names[choice - 1]
+                model = models_dict[selected_model_name]
+                print(f"\nSeçilen Model: {selected_model_name}")
+                break
+            else:
+                print(f"Lütfen 1 ile {len(model_names)} arasında bir sayı girin.")
+        except ValueError:
+            print("Geçersiz giriş. Lütfen bir sayı girin.")
 
     predictions_power_w = model.predict(X)
     
