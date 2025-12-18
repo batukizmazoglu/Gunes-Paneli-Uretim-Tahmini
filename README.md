@@ -1,101 +1,79 @@
-# ☀️ Güneş Enerjisi Üretim Tahmini ve Enerji Verimliliği Öneri Sistemi
+# ☀️ Güneş Enerjisi Üretim Tahmini ve Akıllı Enerji Yönetim Sistemi
 
-Bu proje, hava durumu verilerini kullanarak ev tipi güneş panellerinin enerji üretimini tahmin eden ve bu tahminlere dayanarak kullanıcılara **en verimli enerji tüketim saatlerini** öneren bir yapay zeka uygulamasıdır. 
+Bu proje, makine öğrenimi tekniklerini kullanarak ev tipi güneş panellerinin enerji üretimini tahmin eden ve bu tahminlere dayanarak kullanıcılara **enerji tasarrufu ve verimlilik önerileri** sunan kapsamlı bir yapay zeka uygulamasıdır. 
 
-Sosyal Sorumluluk Dersi kapsamında **Semih DEMİR** ve **Batu KIZMAZOĞLU** tarafından geliştirilmiştir.
-
----
-
-## 🚀 Projenin Amacı
-
-Projenin temel amacı, yenilenebilir enerji kaynaklarının verimliliğini artırmaktır. Sistem, geçmiş üretim verileri ve hava durumu parametrelerini (sıcaklık, bulutluluk, radyasyon) analiz ederek gelecekteki üretimi tahmin eder. 
-
-**Kullanıcıya Sağladığı Faydalar:**
-- ⚡ **Üretim Tahmini:** Önümüzdeki günlerde panelinizin ne kadar elektrik üreteceğini (Watt/Saat cinsinden) tahmin eder.
-- 💡 **Akıllı Öneriler:** "Çamaşır makinesini Saat 13:00'te çalıştırın" gibi somut önerilerle, şebekeden çekilen elektriği azaltmanıza ve kendi ürettiğiniz enerjiyi kullanmanıza yardımcı olur.
+Sosyal Sorumluluk Dersi kapsamında **Batu KIZMAZOĞLU** ve **Semih DEMİR** tarafından geliştirilmiştir.
 
 ---
 
-## 📂 Proje Dosya Yapısı
+## 🎯 Projenin Amacı ve Sosyal Etkisi
 
-Klasör içerisindeki önemli dosyaların açıklamaları aşağıdadır:
+Projenin temel misyonu, yenilenebilir enerji kaynaklarının bireysel kullanım verimliliğini artırarak **karbon ayak izini azaltmak** ve **enerji tasarrufunu teşvik etmektir**.
 
-### 1. Ana Kod Dosyaları
-- **`solar_prediction.py` (EĞİTİM MODÜLÜ):** 
-  - Makine öğrenimi modellerini eğiten ana dosyadır.
-  - Ham verileri (`csv`) okur, temizler ve işler.
-  - Linear Regression, Random Forest, **XGBoost** (Önerilen), MLP, LightGBM gibi modelleri eğitir ve kıyaslar.
-  - En başarılı modeli `best_solar_model.joblib` olarak kaydeder.
-
-- **`solar_wizard.py` (KULLANICI MODÜLÜ - SİHİRBAZ):** 
-  - Son kullanıcının çalıştıracağı dosyadır.
-  - Eğitilmiş modeli (`solar_model_xgboost.joblib`) ve hava durumu tahmin verisini (`json`) kullanarak geleceğe yönelik tahmin yapar.
-  - Kullanıcıya günlük ve saatlik raporlar sunar, cihaz kullanım tavsiyeleri verir.
-
-- **`prepare_data.py`:** 
-  - Ham veri dosyalarını birleştirip temiz bir veri seti (`dataset_final.csv`) oluşturmak için kullanılan yardımcı betiktir.
-
-### 2. Veri Dosyaları
-- **`open-meteo-35.19N33.50E87m.csv`:** Model eğitimi için kullanılan geçmiş hava durumu verileri.
-- **`Energy and power...csv`:** Panelden alınan geçmiş gerçek üretim verileri.
-- **`forecast_data.json` / `5-10tarihleri.json`:** Gelecek günlerin (tahmin yapılacak günlerin) saatlik hava durumu verisi. (Open-Meteo API formatında).
-
-### 3. Model Dosyaları
-- **`solar_model_xgboost.joblib` / `best_solar_model.joblib`:** `solar_prediction.py` tarafından eğitilmiş ve kaydedilmiş yapay zeka modelleridir.
+Sistem, geçmiş üretim verileri ile hava durumu parametrelerini (sıcaklık, radyasyon, bulutluluk) analiz eder ve şu katma değerleri sağlar:
+- 📈 **Hassas Üretim Tahmini:** Panellerin 15 dakikalık aralıklarla ne kadar güç (Watt) üreteceğini yüksek doğrulukla öngörür.
+- 💡 **Akıllı Planlama:** "Zirve" üretim saatlerini belirleyerek; çamaşır, bulaşık ve elektrikli araç şarjı gibi yüksek enerji tüketen işlerin şebekeye yük binmeden "bedava ve yeşil" enerjiyle yapılmasını sağlar.
+- 🌍 **Davranışsal Dönüşüm:** Tüketicileri, enerjiyi sadece tüketen değil, aynı zamanda verimli yöneten "aktif üretici-tüketici" (prosumer) olmaya yönlendirir.
 
 ---
 
-## 🛠️ Kurulum (Installation)
+## 📂 Proje Mimarisi
 
-Projeyi çalıştırmak için bilgisayarınızda **Python 3.8+** yüklü olmalıdır. Gerekli kütüphaneleri yüklemek için terminalde şu komutu çalıştırın:
+| Dosya / Dizin | Açıklama |
+| :--- | :--- |
+| **`solar_prediction.py`** | **Model Eğitim Motoru:** Veri temizleme, özellik mühendisliği ve çoklu algoritma (XGBoost, Random Forest, etc.) eğitimi yapar. |
+| **`solar_wizard.py`** | **Akıllı Asistan (Sihirbaz):** Son kullanıcı için hazırlanan, tahminleri ve önerileri sunan ana arayüz dosyasıdır. |
+| **`prepare_data.py`** | Ham verileri birleştirip eğitim için hazır hale getiren ön işleme betiği. |
+| **`solar_model_xgboost.joblib`** | Projenin "beyni" olan, eğitilmiş en iyi model dosyası. |
+| **`forecast_data.json`** | Tahmin aşamasında kullanılan gelecek günlerin hava durumu verileri. |
+
+---
+
+## 🛠️ Kurulum ve Gereksinimler
+
+Projenin çalışması için **Python 3.8+** gereklidir. Gerekli kütüphaneleri aşağıdaki komutla yükleyebilirsiniz:
 
 ```bash
-pip install pandas numpy scikit-learn xgboost lightgbm catboost joblib openpyxl
+pip install pandas numpy scikit-learn xgboost lightgbm catboost joblib matplotlib
 ```
 
 ---
 
-##  ▶️ Nasıl Çalıştırılır?
+## ▶️ Kullanım Kılavuzu
 
-Projenin iki temel aşaması vardır: **Model Eğitimi** ve **Tahmin (Kullanım)**.
+### 1. Aşama: Modeli Eğitmek (Geliştiriciler İçin)
+Eğer mevcut modelleri güncellemek veya yeni veri setleriyle eğitmek isterseniz:
+```bash
+python solar_prediction.py
+```
+*Bu işlem; Linear Regression, Random Forest, XGBoost, MLP ve LightGBM modellerini eğitir, R² ve MAE skorlarını kıyaslar ve en iyi modeli kaydeder.*
 
-### Adım 1: Modeli Eğitmek (Opsiyonel - Eğer model yoksa)
-Eğer `solar_model_xgboost.joblib` dosyası yoksa veya yeni verilerle modeli güncellemek istiyorsanız:
-
-1. Terminali açın.
-2. `solar_prediction.py` dosyasını çalıştırın:
-   ```bash
-   python solar_prediction.py
-   ```
-3. İşlem bittiğinde en iyi model kaydedilecektir.
-
-### Adım 2: Tahmin Yapmak ve Öneri Almak
-Sistemi kullanmak ve "Yarın çamaşır makinesini ne zaman çalıştırayım?" sorusuna cevap bulmak için:
-
-1. Terminalde `solar_wizard.py` dosyasını çalıştırın:
-   ```bash
-   python solar_wizard.py
-   ```
-2. Program sizden hava durumu dosyasını isteyecektir (Enter'a basarak varsayılan `json` dosyasını seçebilirsiniz).
-3. Günlük toplam üretim tahminlerini göreceksiniz.
-4. Detaylı saatlik döküm ve **Akıllı Öneriler** için listeden bir tarih girin (Örn: `2025-12-10`).
-5. Sistem size en uygun saat aralıklarını (Zirve, Yüksek Verim, Orta Verim) ve hangi cihazları kullanmanız gerektiğini söyleyecektir.
+### 2. Aşama: Akıllı Planlama Sihirbazını Çalıştırmak (Son Kullanıcı)
+Gelecek günlerin üretim tahminini görmek ve kullanım önerisi almak için:
+```bash
+python solar_wizard.py
+```
+**Sihirbazın Adımları:**
+1. Default hava durumu dosyasını (`5-10tarihleri.json`) onaylayın veya kendi dosyanızı seçin.
+2. Karşınıza gelecek **Günlük Üretim Özeti** listesinden bir tarih seçin (Örn: `2025-12-08`).
+3. Sistem size o güne özel **Saatlik Üretim Grafiği** (Metin tabanlı) ve **Akıllı Planlama** listesi sunacaktır.
 
 ---
 
-## 📊 Kullanılan Teknolojiler ve Algoritmalar
+## 🔬 Teknik Detaylar ve İnovasyonlar
 
-Bu projede **Gözetimli Öğrenme (Supervised Learning)** yöntemleri kullanılmıştır.
-- **Algoritmalar:** XGBoost (En yüksek başarı), Random Forest, Linear Regression, MLP (Neural Network).
-- **Girdiler (Features):** Sıcaklık, Güneş Radyasyonu (Shortwave, Diffuse, Direct), Bulutluluk Oranı, Saat, Ay.
-- **Başarı Metriği:** R² Skoru ve MAE (Ortalama Mutlak Hata).
+- **Veri Hassasiyeti:** Model, anlık üretim dalgalanmalarını yakalamak için **15 dakikalık** veri sıklığıyla çalışmaktadır.
+- **Akıllı Kalibrasyon (Yeni):** Sistem, bulutluluk oranının %90'ın üzerinde olduğu ve güneş radyasyonunun çok düşük olduğu "ağır kapalı" günlerde otomatik olarak bir ceza katsayısı uygular. Bu sayede modelin bulutlu günlerdeki aşırı iyimser tahminleri gerçekçi seviyelere çekilir.
+- **Özellik Mühendisliği (Features):** Sadece sıcaklık değil; *kısa dalga radyasyon, difüz radyasyon, doğrudan normal radyasyon, bulutluluk, günün saati ve yılın ayı* gibi değişkenler kullanılarak tahmin doğruluğu maksimize edilmiştir.
+- **Algoritma Karşılaştırması:** Testlerimizde en yüksek başarıyı **XGBoost** algoritması vermiştir.
 
 ---
 
-## 📝 Notlar
-- Güneş paneli üretim verileri 15 dakikalık aralıklarla kaydedilmiştir.
-- Tahminlerde bulutluluk oranı çok yüksekse (%90 üzeri), sistem otomatik kalibrasyon yaparak tahmini düşürür (Bulutlu gün optimizasyonu).
-- Proje sunumunda `solar_wizard.py` ekranındaki "Akıllı Planlama" çıktısını göstermek, projenin sosyal etkisini vurgulamak için önemlidir.
+## 📝 Hazırlayanlar
+Bu proje bir **Sosyal Sorumluluk** projesidir.
 
-**İletişim:**
-Batu KIZMAZOĞLU & Semih DEMİR
+**Geliştirici Ekibi:**
+- **Batu KIZMAZOĞLU**
+- **Semih DEMİR**
+
+*Modern enerji çözümleriyle daha yeşil bir gelecek için...* 🌿
