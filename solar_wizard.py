@@ -5,341 +5,168 @@ import json
 import os
 import sys
 from datetime import datetime
-import plotext as plt  # Terminalde grafik çizimi için eklendi
+import plotext as plt 
 
-def load_model(model_path='best_solar_model.joblib'):
-    # Not: solar_prediction.py modeli 'best_solar_model.joblib' olarak kaydediyor.
-    # Eğer dosya adınız farklıysa burayı veya dosya adını değiştirin.
+def load_model():
+    model_path = 'final_best_model.joblib'
     if not os.path.exists(model_path):
-        # Yedek kontrol: Eski isimle kaydedilmiş olabilir mi?
-        if os.path.exists('solar_model_xgboost.joblib'):
-            return joblib.load('solar_model_xgboost.joblib')
-            
-        print(f"Hata: Model dosyası ({model_path}) bulunamadı.")
-        print("Lütfen önce 'solar_prediction.py' dosyasını çalıştırarak modeli eğitin.")
+        print("HATA: Model seçilmemiş!")
+        print("Lütfen önce 'compare_and_select.py' dosyasını çalıştırın.")
         sys.exit(1)
-    return joblib.load(model_path)
+    
+    # Modelin ne olduğunu (adını) öğrenmek için basit bir kontrol
+    model = joblib.load(model_path)
+    model_type = type(model).__name__
+    print(f"✓ Aktif Model: {model_type} (Otomatik Seçildi)")
+    return model
 
-def draw_terminal_bar_chart(dates, values):
-    """Günlük üretimleri terminalde çubuk grafik olarak gösterir."""
-    try:
-        plt.clf()  # Önceki grafiği temizle
-        plt.theme('pro')  # Tema seçimi
+def get_suggestions(predictions, hours):
+    """Basit ve etkili öneri sistemi"""
+    suggestions = []
+    
+    # Verileri birleştir (Saat ve Tahmin)
+    data = list(zip(hours, predictions))
+    
+    # En yüksek verimli 3 saati bul
+    data.sort(key=lambda x: x[1], reverse=True)
+    top_hours = data[:3]
+    top_hours_sorted = sorted(top_hours, key=lambda x: x[0]) # Saate göre sırala
+    
+    if top_hours_sorted and top_hours_sorted[0][1] > 500: # Eğer üretim varsa
+        start = int(top_hours_sorted[0][0])
+        end = int(top_hours_sorted[-1][0]) + 1
+        avg_prod = sum(p for h, p in top_hours) / len(top_hours)
         
-        # Tarihleri stringe çevir
-        str_dates = [str(d) for d in dates]
+        suggestions.append(f"🔥 ZİRVE SAATLER: {start:02d}:00 - {end:02d}:00 arası.")
+        suggestions.append(f"   Ortalama Güç: {avg_prod:.0f} Watt")
+        suggestions.append("   ✅ ÖNERİ: Çamaşır/Bulaşık makinesini bu aralıkta çalıştırın.")
+    else:
+        suggestions.append("❌ Düşük üretim günü. Tasarruflu olun.")
         
-        plt.bar(str_dates, values, color='yellow', fill=True)
-        plt.title("Gunluk Uretim Tahmini (Wh)")
-        plt.xlabel("Tarih")
-        plt.ylabel("Enerji (Wh)")
-        plt.show()
-    except Exception as e:
-        print(f"Grafik çizilemedi: {e}")
+    return suggestions
 
-def draw_terminal_line_chart(hours, power_values, date_str):
-    """Saatlik üretimi terminalde çizgi grafik olarak gösterir."""
+def draw_chart(hours, values, title):
     try:
         plt.clf()
         plt.theme('pro')
-        
-        plt.plot(hours, power_values, color='green', marker="dot")
-        plt.title(f"{date_str} - Saatlik Guc Uretimi (W)")
-        plt.xlabel("Saat (00-23)")
-        plt.ylabel("Guc (Watt)")
-        # Y eksenini biraz yukarıdan başlat ki tepe noktası tavana yapışmasın
-        if len(power_values) > 0:
-            plt.ylim(0, max(power_values) * 1.1) 
-            
+        plt.plot(hours, values, marker="dot")
+        plt.title(title)
         plt.show()
-    except Exception as e:
-        print(f"Grafik çizilemedi: {e}")
+    except: pass
 
-def get_suggestions(predictions, df_forecast):
-    """
-    Tahminlere göre gelişmiş, zaman aralıklı öneriler üretir.
-    En yüksek 3 saatlik dilimi ve diğer verimli saatleri belirler.
-    """
-    suggestions = []
+def main():
+    print("====================================")
+    print("   SOLAR WIZARD - AKILLI ASİSTAN")
+    print("====================================")
     
-    # Eşik değerler
-    HIGH_THRESHOLD = 2000 
-    MEDIUM_THRESHOLD = 800 
+    model = load_model()
     
-    # 1. En İyi 3 Saatlik Aralığı Bul (Moving Sum)
-    best_window_sum = 0
-    best_window_start = -1
-    window_size = 3
+    json_path = input("\nJSON dosya adı (Enter=Varsayılan): ").strip() or '5-10tarihleri.json'
     
-    # df_forecast genellikle 'hour' sütununa sahiptir, yoksa range kullanırız
-    if 'hour' in df_forecast.columns:
-        hours = df_forecast['hour'].values
-    else:
-        hours = np.arange(len(predictions))
-    
-    if len(predictions) < window_size:
-         return ["Veri aralığı öneri üretmek için çok kısa."]
-
-    for i in range(len(predictions) - window_size + 1):
-        current_sum = np.sum(predictions[i : i+window_size])
-        if current_sum > best_window_sum:
-            best_window_sum = current_sum
-            best_window_start = i
-            
-    best_window_indices = []
-    if best_window_start != -1 and best_window_sum > (window_size * MEDIUM_THRESHOLD):
-        best_end = best_window_start + window_size
-        best_window_indices = list(range(best_window_start, best_end))
-        
-        avg_prod = best_window_sum / window_size
-        start_h = int(hours[best_window_start])
-        # Bitiş saati döngüsel olabilir (24'ü geçerse) ama basit tutuyoruz
-        end_idx = best_end - 1
-        if end_idx < len(hours):
-            end_h = int(hours[end_idx]) + 1 
-        else:
-            end_h = 24
-
-        suggestions.append(f"🔥 EN YÜKSEK VERİM (ZİRVE) SAATLERİ: {start_h:02d}:00 - {end_h:02d}:00")
-        suggestions.append(f"   Ortalama Üretim: {avg_prod:.0f} W")
-        suggestions.append("   ✅ ÖNERİLEN CİHAZLAR: Çamaşır Makinesi, Bulaşık Makinesi, Fırın, Elektrikli Araç Şarjı.")
-        suggestions.append("   -> En çok enerji tüketen işlerinizi bu aralığa sıkıştırın!\n")
-    
-    # 2. Diğer Verimli Saatleri Bul
-    secondary_high = []
-    secondary_medium = []
-    
-    for i, pred in enumerate(predictions):
-        if i in best_window_indices:
-            continue # Zaten zirve aralığında
-        
-        if i < len(hours):    
-            h = int(hours[i])
-            if pred >= HIGH_THRESHOLD:
-                secondary_high.append(h)
-            elif pred >= MEDIUM_THRESHOLD:
-                secondary_medium.append(h)
-            
-    def group_hours(hour_list):
-        if not hour_list:
-            return []
-        ranges = []
-        start = hour_list[0]
-        end = start
-        for h in hour_list[1:]:
-            if h == end + 1:
-                end = h
-            else:
-                ranges.append((start, end + 1))
-                start = h
-                end = h
-        ranges.append((start, end + 1))
-        return ranges
-
-    if secondary_high:
-        ranges = group_hours(secondary_high)
-        time_strs = [f"{s:02d}:00-{e:02d}:00" for s, e in ranges]
-        suggestions.append(f"⚡ YÜKSEK VERİM SAATLERİ: {', '.join(time_strs)}")
-        suggestions.append("   ✅ ÖNERİLEN CİHAZLAR: Ütü, Elektrikli Süpürge, Ketıl.")
-        suggestions.append("   -> Zirve saatleri kaçırırsanız en iyi alternatifler bunlardır.\n")
-        
-    if secondary_medium:
-        ranges = group_hours(secondary_medium)
-        time_strs = [f"{s:02d}:00-{e:02d}:00" for s, e in ranges]
-        suggestions.append(f"🔋 ORTA VERİM SAATLERİ: {', '.join(time_strs)}")
-        suggestions.append("   ✅ ÖNERİLEN CİHAZLAR: Laptop/Telefon Şarjı, TV, Aydınlatma.")
-        suggestions.append("   -> Bataryalı cihazları şarj etmek için idealdir.\n")
-        
-    if not best_window_indices and not secondary_high and not secondary_medium:
-        suggestions.append("❌ DÜŞÜK ÜRETİM GÜNÜ")
-        suggestions.append("   Bugün güneş enerjisi üretimi oldukça düşük.")
-        suggestions.append("   -> Zorunlu olmayan yüksek tüketimli işleri erteleyin.")
-
-    return suggestions
-
-def process_forecast(json_path, model):
     try:
         with open(json_path, 'r', encoding='utf-8') as f:
-            data_json = json.load(f)
-    except FileNotFoundError:
-        print("Hata: Dosya bulunamadı.")
-        return None
-    except json.JSONDecodeError:
-        print("Hata: Geçersiz JSON formatı.")
-        return None
+            json_content = json.load(f)
+            # 'minutely_15' anahtarını kontrol et
+            if 'minutely_15' in json_content:
+                data = json_content['minutely_15']
+            else:
+                print("Hata: JSON içinde 'minutely_15' verisi bulunamadı.")
+                return
+    except Exception as e:
+        print(f"Hata: Dosya okunamadı ({e})")
+        return
 
-    # DataFrame Oluştur
-    if 'minutely_15' not in data_json:
-        print("Hata: JSON dosyasında 'minutely_15' verisi bulunamadı.")
-        return None
-        
-    minutely_data = data_json['minutely_15']
-    
-    lengths = {k: len(v) for k, v in minutely_data.items() if isinstance(v, list)}
-    if not lengths:
-        print("Hata: Veri bulunamadı.")
-        return None
-        
-    min_len = min(lengths.values())
-    
-    for k in minutely_data:
-        if isinstance(minutely_data[k], list):
-             minutely_data[k] = minutely_data[k][:min_len]
+    # --- HATA DÜZELTME KISMI (Burayı Ekledik) ---
+    # Tüm listelerin uzunluklarını kontrol et ve en kısa olana eşitle
+    lengths = {k: len(v) for k, v in data.items() if isinstance(v, list)}
+    if lengths:
+        min_len = min(lengths.values())
+        for k in data:
+            if isinstance(data[k], list):
+                data[k] = data[k][:min_len] # Fazlalıkları kırp
+    # --------------------------------------------
 
-    df = pd.DataFrame(minutely_data)
+    # Veri İşleme
+    try:
+        df = pd.DataFrame(data)
+    except ValueError as e:
+        print(f"Veri hatası: {e}")
+        return
+
     df['time'] = pd.to_datetime(df['time'])
-
     df['hour'] = df['time'].dt.hour
     df['month'] = df['time'].dt.month
     df['dayofyear'] = df['time'].dt.dayofyear
     
-    column_mapping = {
+    # Sütun isimlerini düzelt
+    cols = {
         'temperature_2m': 'temperature_2m (°C)',
         'shortwave_radiation': 'shortwave_radiation (W/m²)',
         'diffuse_radiation': 'diffuse_radiation (W/m²)',
         'direct_normal_irradiance': 'direct_normal_irradiance (W/m²)',
         'cloud_cover': 'cloud_cover (%)'
     }
-    df.rename(columns=column_mapping, inplace=True)
-
-    features = [
-        'temperature_2m (°C)', 
-        'shortwave_radiation (W/m²)', 
-        'diffuse_radiation (W/m²)', 
-        'direct_normal_irradiance (W/m²)', 
-        'cloud_cover (%)',
-        'hour', 
-        'month', 
-        'dayofyear'
-    ]
+    df.rename(columns=cols, inplace=True)
     
-    missing_cols = [col for col in features if col not in df.columns]
-    if missing_cols:
-        print(f"Hata: Şu sütunlar eksik: {missing_cols}")
-        return None
-
-    X = df[features]
+    # Modelin beklediği sütunlar
+    features = ['temperature_2m (°C)', 'shortwave_radiation (W/m²)', 'diffuse_radiation (W/m²)', 
+                'direct_normal_irradiance (W/m²)', 'cloud_cover (%)', 'hour', 'month', 'dayofyear']
     
-    predictions_power_w = model.predict(X)
-    predictions_power_w = np.maximum(predictions_power_w, 0)
-
-    # Kalibrasyon: Yüksek bulutluluk cezası
-    prediction_series = pd.Series(predictions_power_w, index=X.index)
-    cloud_cover = X['cloud_cover (%)']
-    direct_rad = X['direct_normal_irradiance (W/m²)']
-    
-    heavy_cloud_mask = (cloud_cover > 90) & (direct_rad < 50)
-    prediction_series.loc[heavy_cloud_mask] *= 0.32
-    
-    predictions_power_w = prediction_series.values
-    
-    # 15 dk veri -> Wh hesabı (W * 0.25h)
-    predictions_energy_wh = predictions_power_w * 0.25
-    
-    df['Predicted_Power_W'] = predictions_power_w
-    df['Predicted_Energy_Wh'] = predictions_energy_wh
-    df['Date'] = df['time'].dt.date
-    
-    return df
-
-def main():
-    print("=============================================")
-    print("   GÜNEŞ ENERJİSİ ÜRETİM TAHMİN SİSTEMİ")
-    print("=============================================")
-    
-    model = load_model()
-    print("Model başarıyla yüklendi.")
-    
-    while True:
-        json_path = input("\nLütfen hava durumu JSON dosyasının yolunu girin (Varsayılan: 5-10tarihleri.json): ").strip()
-        if not json_path:
-            json_path = '5-10tarihleri.json'
-        
-        if os.path.exists(json_path):
-            break
-        else:
-            print(f"Hata: '{json_path}' bulunamadı. Lütfen tekrar deneyin.")
-
-    print(f"\n'{json_path}' işleniyor...")
-    df_result = process_forecast(json_path, model)
-    
-    if df_result is None:
-        print("İşlem başarısız oldu. Program sonlandırılıyor.")
+    # Eksik sütun kontrolü
+    missing = [c for c in features if c not in df.columns]
+    if missing:
+        print(f"Hata: JSON verisinde şu sütunlar eksik: {missing}")
         return
 
-    # Günlük Toplamları Hesapla
-    daily_production = df_result.groupby('Date')['Predicted_Energy_Wh'].sum()
+    # Tahmin
+    preds = model.predict(df[features])
+    preds = np.maximum(preds, 0) # Negatifleri sıfırla
     
-    print("\n--- GÜNLÜK ÜRETİM TAHMİNLERİ ---")
-    print(f"{'Tarih':<15} | {'Toplam Üretim (Wh)':<20} | {'Toplam Üretim (kWh)':<20}")
-    print("-" * 60)
+    df['Predicted_W'] = preds
+    df['Date'] = df['time'].dt.date
     
-    total_period_production = 0
-    available_dates = []
+    # Günlük Özet
+    daily = df.groupby('Date')['Predicted_W'].sum() * 0.25 # Wh hesabı
     
-    for date, energy_wh in daily_production.items():
-        energy_kwh = energy_wh / 1000
-        total_period_production += energy_wh
-        available_dates.append(str(date))
-        print(f"{str(date):<15} | {energy_wh:>18.2f} Wh | {energy_kwh:>18.2f} kWh")
-        
-    print("-" * 60)
-    print(f"TOPLAM ({len(daily_production)} Gün) : {total_period_production:>18.2f} Wh | {(total_period_production/1000):>18.2f} kWh")
+    print(f"\n{'Tarih':<12} | {'Toplam (Wh)':<15}")
+    print("-" * 30)
+    for d, v in daily.items():
+        print(f"{str(d):<12} | {v:.2f}")
     
-    # --- GÜNLÜK GRAFİK ---
-    print("\n[Günlük Üretim Grafiği]")
-    draw_terminal_bar_chart(daily_production.index, daily_production.values)
-    # ---------------------
-    
+    # Grafik çizimi (Günlük)
+    try:
+        plt.clf()
+        plt.theme('pro')
+        plt.bar([str(d) for d in daily.index], daily.values, color='yellow')
+        plt.title("Günlük Toplam Üretim")
+        plt.show()
+    except: pass
+
+    # Detay ve Öneri
     while True:
-        print("\nDetaylı görmek istediğiniz bir gün var mı?")
-        print(f"Mevcut Tarihler: {', '.join(available_dates)}")
-        choice = input("Tarih girin (YYYY-MM-DD formatında) veya çıkmak için 'q'/'exit' yazın: ").strip()
+        sel = input("\nDetay için tarih gir (YYYY-MM-DD) veya 'q': ").strip()
+        if sel.lower() in ['q', 'exit']: break
         
-        if choice.lower() in ['q', 'exit', 'hayır', 'yok']:
-            print("Program sonlandırılıyor. İyi günler!")
-            break
+        try:
+            target_date = datetime.strptime(sel, "%Y-%m-%d").date()
+            day_data = df[df['Date'] == target_date]
             
-        if choice not in available_dates:
-            print("Hatalı tarih girişi! Lütfen listedeki tarihlerden birini girin.")
-            continue
+            if day_data.empty:
+                print("Bu tarih için veri yok.")
+                continue
+
+            # Saatlik Ortalama
+            hourly = day_data.groupby('hour')['Predicted_W'].mean()
             
-        # Seçilen günün verilerini filtrele
-        selected_date = datetime.strptime(choice, "%Y-%m-%d").date()
-        day_df = df_result[df_result['Date'] == selected_date].copy()
-        
-        # Saatlik ortalama güç ve toplam enerji
-        hourly_stats = day_df.groupby('hour').agg({
-            'Predicted_Power_W': 'mean',
-            'Predicted_Energy_Wh': 'sum'
-        }).reset_index()
-        
-        print(f"\n--- {choice} DETAYLI SAATLİK TAHMİN ---")
-        print(f"{'Saat':<10} | {'Ortalama Güç (W)':<20}")
-        print("-" * 35)
-        
-        # Tam 24 saati doldurmak için
-        full_day = pd.DataFrame({'hour': range(24)})
-        hourly_merged = pd.merge(full_day, hourly_stats, on='hour', how='left').fillna(0)
-        
-        hourly_predictions = hourly_merged['Predicted_Power_W'].values
-        
-        for index, row in hourly_merged.iterrows():
-            print(f"{int(row['hour']):02d}:00      | {row['Predicted_Power_W']:>15.0f} W")
+            print(f"\n--- {sel} SAATLİK GRAFİK ---")
+            draw_chart(hourly.index.tolist(), hourly.values.tolist(), f"{sel} Üretim")
             
-        print("\n--- GÜNLÜK AKILLI PLANLAMA ---")
-        
-        # --- SAATLİK GRAFİK ---
-        print(f"\n[{choice} için Saatlik Güç Grafiği]")
-        draw_terminal_line_chart(hourly_merged['hour'].tolist(), hourly_merged['Predicted_Power_W'].tolist(), str(selected_date))
-        print("-" * 40)
-        # ----------------------
-        
-        df_for_suggestion = pd.DataFrame({'hour': range(24)})
-        
-        advice_list = get_suggestions(hourly_predictions, df_for_suggestion)
-        for line in advice_list:
-            print(line)
+            print("\n💡 GÜNLÜK TAVSİYE:")
+            tips = get_suggestions(hourly.values, hourly.index.tolist())
+            for t in tips: print(t)
+            
+        except ValueError:
+            print("Geçersiz tarih formatı!")
 
 if __name__ == "__main__":
     main()
